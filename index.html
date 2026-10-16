@@ -54,8 +54,10 @@
 </div>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
-// 先行案内のデータと LIFF ID は GAS から読む（案内が変わってもこのファイルは変えなくてよい）
+// 先行案内のデータは GAS から読む（案内が変わってもこのファイルは変えなくてよい）
+// GAS は LINE のアクセストークンで本人を確かめ、承認済みの人にだけ商品と価格を返す
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyH4WPrqWzN4XOyD3ER7bEblq1OFKeWYI3YDfvCnPck8USBhiGTqlGyrcjqqr9qPcU/exec';
+const LIFF_ID = '2012025548-wUHQPY1m';
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 const TIMES = ['指定なし', '午前中', '12〜14時', '14〜16時', '16〜18時'];
 const app = document.getElementById('app');
@@ -79,9 +81,12 @@ function remember(key, value) {
 main().catch(e => message('読み込みに失敗しました。<br>画面を閉じて、もう一度お試しください。<br><small>' + esc(e.message || e) + '</small>'));
 
 async function main() {
-  const res = await fetch(GAS_URL + '?api=order');
+  await liff.init({ liffId: LIFF_ID });
+  if (!liff.isLoggedIn()) return liff.login();
+  const res = await fetch(GAS_URL + '?api=order&token=' + encodeURIComponent(liff.getAccessToken()));
   const cfg = await res.json();
-  await liff.init({ liffId: cfg.liffId });
+  if (cfg.pending) return message('ご登録の確認が済み次第、ご覧いただけます。<br>確認ができましたら、LINEのトークでお知らせいたします。');
+  if (cfg.error) return message('ご本人の確認ができませんでした。<br>LINEのトークで「先行販売」を押し、「注文する」から開き直してください。');
   if (!cfg.order) return message('現在ご案内中の先行販売はありません。');
   if (cfg.closed) return message('<b>' + esc(cfg.order.title) + '</b><br>ご予約の受付は終了しました。');
   render(cfg.order);
